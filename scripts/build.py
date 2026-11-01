@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Build pinned libvpx with Apple clang; no third-party runtime dependencies."""
-import json, os, pathlib, re, shutil, subprocess, sys
+import json, os, pathlib, shutil, subprocess, sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 os.chdir(ROOT)
 VERSION = '1.17.0'
@@ -79,24 +79,21 @@ def package():
  checksum = run('swift','package','compute-checksum',str(archive))
  (ROOT/'libvpx.xcframework.zip.sha256').write_text(checksum+'\n')
 def release(tag):
- if not re.fullmatch(r'v?\d+\.\d+\.\d+',tag): raise SystemExit('Use a stable version tag')
- checksum = run('swift','package','compute-checksum','libvpx.xcframework.zip')
- template = (ROOT/'support/Package.swift').read_text()
- manifest = template.replace('path: "libvpx.xcframework"',f'url: "https://github.com/HaishinKit/libvpx-xcframework/releases/download/{tag}/libvpx.xcframework.zip", checksum: "{checksum}"')
- (ROOT/'dist').mkdir(exist_ok=True)
- (ROOT/'dist/Package.swift').write_text(manifest)
- (ROOT/'Package.swift').write_text(manifest)
+ subprocess.run([sys.executable,str(ROOT/'scripts/release-manifest.py'),'release',tag],check=True)
 command = sys.argv[1] if len(sys.argv)>1 else 'all'
 if command == 'prepare': prepare()
 elif command == 'build':
  for name in ([sys.argv[2]] if len(sys.argv)>2 else PLATFORMS): build(name)
 elif command == 'package': package()
-elif command == 'verify': subprocess.run([sys.executable,str(ROOT/'tests/verify.py')],check=True)
-elif command == 'local': shutil.copy2(ROOT/'support/Package.swift', ROOT/'Package.swift')
+elif command == 'verify':
+ subprocess.run([sys.executable,str(ROOT/'scripts/release-manifest.py'),'check-local'],check=True)
+ subprocess.run([sys.executable,str(ROOT/'tests/verify.py')],check=True)
+elif command == 'local': subprocess.run([sys.executable,str(ROOT/'scripts/release-manifest.py'),'local'],check=True)
 elif command == 'release': release(sys.argv[2])
+elif command == 'publish': subprocess.run([sys.executable,str(ROOT/'scripts/publish.py'),sys.argv[2]],check=True)
 elif command == 'all':
  prepare()
  for name in PLATFORMS: build(name)
  package()
  shutil.copy2(ROOT/'support/Package.swift', ROOT/'Package.swift')
-else: raise SystemExit('Commands: all, prepare, build [platform], package, local, release TAG')
+else: raise SystemExit('Commands: all, prepare, build [platform], package, local, release TAG, publish TAG')

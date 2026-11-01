@@ -90,8 +90,57 @@ same tag. The repository and release must exist before remote consumers can
 resolve it. Do not rebuild or replace published assets without publishing a new
 package version. Restore the development manifest with `./build.sh local`.
 
-The included manual GitHub Actions workflow builds and verifies the package,
-and uploads build artifacts for review. It does not create tags or publish releases.
+## Release from GitHub Actions
+
+After this workflow is on `main`:
+
+1. Open **Actions → Release XCFramework → Run workflow**.
+2. Select **main** and enter a package version, such as `1.17.0`.
+3. Run the workflow. A successful run publishes `v1.17.0` and its GitHub Release.
+
+The input is the **package distribution version**, not the upstream libvpx
+version to download. The source version and commit remain pinned in
+`scripts/build.py`. Update those pins in a reviewed change before releasing a
+new upstream version. Both `1.17.0` and `v1.17.0` normalize to `v1.17.0`.
+Only stable versions are accepted; existing tags and releases (including drafts)
+are rejected before building. Release runs are serialized.
+
+The workflow builds all eight slices on an Apple silicon `macos-26` runner with
+Xcode 26.6, verifies Swift linking and macOS VP8/VP9 round trips, then generates
+the remote Swift package manifest with the exact ZIP checksum. It commits that
+manifest and pushes **only the release tag**. `main` retains its local development
+manifest; remote SwiftPM consumers select a published version tag.
+
+The built-in `GITHUB_TOKEN` with `contents: write` is sufficient; no personal
+access token or signing secret is required. Repository rules must permit the
+workflow to create tags and GitHub Releases. The separate **Build XCFramework**
+workflow still builds and uploads review artifacts without publishing.
+
+Before pushing the release tag, the release workflow saves the exact ZIP,
+checksum, and `dist/Package.swift` as a recovery artifact for 30 days. If
+publication fails after the tag is pushed, do **not** rebuild or move the tag:
+download the saved artifact, check out the existing tag, restore the ZIP and
+checksum to the repository root, and run:
+
+```sh
+./build.sh publish v1.17.0
+```
+
+Publishing checks the manifest/checksum, clean working tree, matching local and
+remote tags at HEAD, and notices inside the ZIP. It refuses to replace an
+existing release. If a draft or partial Release already exists, inspect and
+complete it using the saved assets instead of overwriting them.
+
+For manual publication, generate the release manifest, commit it, and push the
+commit and its tag before running `./build.sh publish TAG`. Local release
+preparation never uploads anything. Restore the local manifest with
+`./build.sh local` before resuming local development.
+
+Release tooling can be checked without publishing or accessing GitHub:
+
+```sh
+python3 tests/verify-release.py
+```
 
 ## Licenses and app redistribution
 
