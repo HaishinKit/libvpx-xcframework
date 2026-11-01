@@ -1,0 +1,8 @@
+/build/
+/libvpx/
+/libvpx.xcframework/
+/libvpx.xcframework.zip
+/libvpx.xcframework.zip.sha256
+/dist/
+.DS_Store
+__pycache__/
