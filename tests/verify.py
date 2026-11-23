@@ -18,6 +18,9 @@ with tempfile.TemporaryDirectory() as tmp:
   path = framework/lib['LibraryIdentifier']
   archive = path/lib['LibraryPath']
   headers = path/lib['HeadersPath']
+  assert not (headers/'module.modulemap').exists(), 'Root module map collides with other static XCFrameworks in Xcode'
+  assert (headers/'libvpx/module.modulemap').read_text() == 'module libvpx [system] {\n  umbrella "../vpx"\n  export *\n}\n'
+  assert (headers/'vpx/vpx_encoder.h').is_file(), 'Public vpx/ include layout must be preserved'
   sysroot = subprocess.check_output(['xcrun','--sdk',sdk,'--show-sdk-path'],text=True).strip()
   output = tmp/lib['LibraryIdentifier']
   subprocess.run(['xcrun','--sdk',sdk,'swiftc','-target',target,'-sdk',sysroot,'-module-cache-path',str(tmp/'cache'),'-I',str(headers),str(swift),str(archive),'-o',str(output)],check=True)

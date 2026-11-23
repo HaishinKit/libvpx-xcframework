@@ -42,6 +42,21 @@ class ReleaseTests(unittest.TestCase):
         with patch.object(sys, 'argv', [name, *args]), contextlib.redirect_stdout(io.StringIO()):
             runpy.run_path(str(self.directory/'scripts'/name), run_name='__main__')
 
+    def test_module_map_does_not_collide_or_move_public_headers(self):
+        headers = self.directory/'headers'
+        (headers/'vpx').mkdir(parents=True)
+        public_header = headers/'vpx/vpx_encoder.h'
+        public_header.write_text('/* original public header */\n')
+        (headers/'module.modulemap').write_text('module libvpx { umbrella "vpx" }\n')
+        with patch.object(sys, 'argv', ['build.py', 'local']), patch('subprocess.run'):
+            build = runpy.run_path(str(self.directory/'scripts/build.py'))
+        for _ in range(2):
+            build['write_module_map'](headers)
+            self.assertFalse((headers/'module.modulemap').exists())
+            self.assertEqual((headers/'libvpx/module.modulemap').read_text(),
+                             'module libvpx [system] {\n  umbrella "../vpx"\n  export *\n}\n')
+            self.assertEqual(public_header.read_text(), '/* original public header */\n')
+
     def prepare(self):
         self.script('release-manifest.py', 'release', 'v1.17.0')
 
