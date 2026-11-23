@@ -67,7 +67,9 @@ let encoder = vpx_codec_vp8_cx() // VP8 encoder interface
 let decoder = vpx_codec_vp9_dx() // VP9 decoder interface
 ```
 
-Public C headers retain their `vpx/` layout and a module map exports `libvpx`.
+Public C headers retain their `vpx/` layout; the module map at
+`Headers/libvpx/module.modulemap` exports `libvpx`. Its namespaced path avoids
+Xcode header-copy collisions when linking other static XCFrameworks, such as libaom.
 SwiftPM consumers do not need to add the C++ runtime.
 
 ## Distribution

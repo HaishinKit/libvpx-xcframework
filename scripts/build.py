@@ -37,6 +37,12 @@ def prepare():
  assert text.count(needle) == 1
  config.write_text(text.replace(needle, needle + '  if [ -n "${LIBVPX_APPLE_SYSROOT:-}" ]; then\n    printf "%s\\n" "$LIBVPX_APPLE_SYSROOT"\n    return\n  fi\n'))
  (ROOT/'build/source.json').write_text(json.dumps({'version':VERSION,'commit':COMMIT,'url':URL,'adaptation':'SDK path override in configure.sh; codec sources unchanged'},indent=2)+'\n')
+def write_module_map(headers):
+ # Xcode copies static XCFramework headers into a shared include directory.
+ # Keep the module map unique without changing public <vpx/...> include paths.
+ (headers/'module.modulemap').unlink(missing_ok=True)
+ (headers/'libvpx').mkdir(exist_ok=True)
+ (headers/'libvpx/module.modulemap').write_text('module libvpx [system] {\n  umbrella "../vpx"\n  export *\n}\n')
 def build(name):
  sdk, triple = PLATFORMS[name]
  if not (ROOT/'build/source/configure').exists(): raise SystemExit('Run ./build.sh prepare first')
@@ -56,14 +62,15 @@ def build(name):
  subprocess.run(['make','-j'+os.environ.get('JOBS','8')],cwd=directory,env=env,check=True)
  subprocess.run(['make','install'],cwd=directory,env=env,check=True)
  (directory/'source.json').write_bytes((ROOT/'build/source.json').read_bytes())
- headers = prefix/'include'
- (headers/'module.modulemap').write_text('module libvpx [system] {\n  umbrella "vpx"\n  export *\n}\n')
+ write_module_map(prefix/'include')
 def package():
  args = ['xcodebuild','-create-xcframework']
  for name in PLATFORMS:
   directory = ROOT/'build'/name
   if (directory/'source.json').read_bytes() != (ROOT/'build/source.json').read_bytes():
    raise SystemExit(f'Stale build: {name}')
+  # Also normalize already-built slices when only the packaging step is rerun.
+  write_module_map(directory/'install/include')
   args += ['-library',str(directory/'install/lib/libvpx.a'),'-headers',str(directory/'install/include')]
  output = ROOT/'libvpx.xcframework'
  if output.exists(): shutil.rmtree(output)
